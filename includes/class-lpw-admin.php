@@ -84,13 +84,13 @@ class LPW_Admin {
 			'lpw-admin',
 			'lpwData',
 			array(
-				'ajaxUrl'        => admin_url( 'admin-ajax.php' ),
-				'nonce'          => wp_create_nonce( 'lpw_admin' ),
+				'ajaxUrl'         => admin_url( 'admin-ajax.php' ),
+				'nonce'           => wp_create_nonce( 'lpw_admin' ),
 				'confirmBaseline' => __( 'Replace the saved baseline with this capture? The old baseline image is deleted and future comparisons use the new one.', 'lookit-page-watch' ),
-				'confirmDelete'  => __( 'Remove this page from the watchlist? Its baseline and all captures are deleted.', 'lookit-page-watch' ),
-				'capturing'      => __( 'Capturing…', 'lookit-page-watch' ),
-				'done'           => __( 'Done', 'lookit-page-watch' ),
-				'sending'        => __( 'Sending digest…', 'lookit-page-watch' ),
+				'confirmDelete'   => __( 'Remove this page from the watchlist? Its baseline and all captures are deleted.', 'lookit-page-watch' ),
+				'capturing'       => __( 'Capturing…', 'lookit-page-watch' ),
+				'done'            => __( 'Done', 'lookit-page-watch' ),
+				'sending'         => __( 'Sending digest…', 'lookit-page-watch' ),
 			)
 		);
 	}
@@ -405,8 +405,14 @@ class LPW_Admin {
 						<div class="lpw-field">
 							<label for="lpw-token"><?php esc_html_e( 'Shared token', 'lookit-page-watch' ); ?></label>
 							<div>
-								<input type="password" id="lpw-token" name="token" value="<?php echo esc_attr( $s['token'] ); ?>" autocomplete="new-password" class="regular-text">
-								<p class="description"><?php esc_html_e( 'Sent as the X-Lookit-Token header. Must match the token in the n8n workflow.', 'lookit-page-watch' ); ?></p>
+								<input type="password" id="lpw-token" name="token" value="" autocomplete="new-password" class="regular-text" placeholder="<?php echo $s['token'] ? esc_attr__( 'Leave blank to keep the saved token', 'lookit-page-watch' ) : ''; ?>">
+								<p class="description">
+									<?php if ( $s['token'] ) : ?>
+										<?php esc_html_e( 'A token is already saved. Leave this blank to keep it, or paste a new value to replace it. Sent as the X-Lookit-Token header and must match the token in the n8n workflow.', 'lookit-page-watch' ); ?>
+									<?php else : ?>
+										<?php esc_html_e( 'Sent as the X-Lookit-Token header. Must match the token in the n8n workflow.', 'lookit-page-watch' ); ?>
+									<?php endif; ?>
+								</p>
 							</div>
 						</div>
 						<div class="lpw-field">
@@ -605,10 +611,10 @@ class LPW_Admin {
 								<select id="lpw-retain" name="retain_days">
 									<?php
 									$retain = array(
-										7   => __( '7 days', 'lookit-page-watch' ),
-										30  => __( '30 days', 'lookit-page-watch' ),
-										90  => __( '90 days', 'lookit-page-watch' ),
-										0   => __( 'Forever', 'lookit-page-watch' ),
+										7  => __( '7 days', 'lookit-page-watch' ),
+										30 => __( '30 days', 'lookit-page-watch' ),
+										90 => __( '90 days', 'lookit-page-watch' ),
+										0  => __( 'Forever', 'lookit-page-watch' ),
 									);
 									foreach ( $retain as $key => $label ) {
 										printf( '<option value="%d" %s>%s</option>', (int) $key, selected( (int) $s['retain_days'], $key, false ), esc_html( $label ) );
@@ -806,26 +812,40 @@ class LPW_Admin {
 		}
 		check_admin_referer( 'lpw_settings' );
 
-		$current = lookit_page_watch_get_settings();
+		$new = self::sanitize_settings( wp_unslash( $_POST ), lookit_page_watch_get_settings() ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized in sanitize_settings.
+
+		update_option( 'lookit_page_watch_settings', $new, false );
+		LPW_Cron::reschedule();
+
+		self::redirect( __( 'Settings saved and the schedule updated.', 'lookit-page-watch' ), 'success', 'lookit-page-watch-settings' );
+	}
+
+	/**
+	 * Sanitize posted settings over the current stored values.
+	 *
+	 * @param array<string,mixed> $posted  Raw request data.
+	 * @param array<string,mixed> $current Current settings.
+	 * @return array<string,mixed>
+	 */
+	public static function sanitize_settings( $posted, $current ) {
+		$submitted_token = isset( $posted['token'] ) ? sanitize_text_field( (string) $posted['token'] ) : '';
 
 		$new = array(
-			'endpoint'    => isset( $_POST['endpoint'] ) ? esc_url_raw( wp_unslash( $_POST['endpoint'] ) ) : '',
-			'token'       => isset( $_POST['token'] ) ? sanitize_text_field( wp_unslash( $_POST['token'] ) ) : '',
-			'interval'    => isset( $_POST['interval'] ) ? sanitize_key( wp_unslash( $_POST['interval'] ) ) : 'lpw_24h',
-			'anchor'      => isset( $_POST['anchor'] ) ? sanitize_text_field( wp_unslash( $_POST['anchor'] ) ) : '06:00',
-			'width'       => isset( $_POST['width'] ) ? (int) $_POST['width'] : 1440,
-			// No control for this any more, so carry the stored value forward.
-			// Browserless still honours it; mShots ignores it either way.
-			'full_page'   => (int) $current['full_page'],
-			'threshold'   => isset( $_POST['threshold'] ) ? (float) $_POST['threshold'] : 2.0,
-			'region_threshold' => isset( $_POST['region_threshold'] ) ? (float) $_POST['region_threshold'] : 10.0,
-			'digest_mode' => isset( $_POST['digest_mode'] ) ? sanitize_key( wp_unslash( $_POST['digest_mode'] ) ) : 'daily_changes',
-			'digest_time' => isset( $_POST['digest_time'] ) ? sanitize_text_field( wp_unslash( $_POST['digest_time'] ) ) : '08:00',
-			'recipients'  => isset( $_POST['recipients'] ) ? sanitize_textarea_field( wp_unslash( $_POST['recipients'] ) ) : '',
-			'retain_days' => isset( $_POST['retain_days'] ) ? (int) $_POST['retain_days'] : 30,
-			'use_media_library' => isset( $_POST['use_media_library'] ) ? 1 : 0,
-			'preserve_on_uninstall' => isset( $_POST['preserve_on_uninstall'] ) ? 1 : 0,
-			'dir_key'     => $current['dir_key'],
+			'endpoint'              => isset( $posted['endpoint'] ) ? esc_url_raw( (string) $posted['endpoint'] ) : '',
+			'token'                 => '' !== $submitted_token ? $submitted_token : (string) $current['token'],
+			'interval'              => isset( $posted['interval'] ) ? sanitize_key( (string) $posted['interval'] ) : 'lpw_24h',
+			'anchor'                => isset( $posted['anchor'] ) ? sanitize_text_field( (string) $posted['anchor'] ) : '06:00',
+			'width'                 => isset( $posted['width'] ) ? (int) $posted['width'] : 1440,
+			'full_page'             => (int) $current['full_page'],
+			'threshold'             => isset( $posted['threshold'] ) ? (float) $posted['threshold'] : 2.0,
+			'region_threshold'      => isset( $posted['region_threshold'] ) ? (float) $posted['region_threshold'] : 10.0,
+			'digest_mode'           => isset( $posted['digest_mode'] ) ? sanitize_key( (string) $posted['digest_mode'] ) : 'daily_changes',
+			'digest_time'           => isset( $posted['digest_time'] ) ? sanitize_text_field( (string) $posted['digest_time'] ) : '08:00',
+			'recipients'            => isset( $posted['recipients'] ) ? sanitize_textarea_field( (string) $posted['recipients'] ) : '',
+			'retain_days'           => isset( $posted['retain_days'] ) ? (int) $posted['retain_days'] : 30,
+			'use_media_library'     => isset( $posted['use_media_library'] ) ? 1 : 0,
+			'preserve_on_uninstall' => isset( $posted['preserve_on_uninstall'] ) ? 1 : 0,
+			'dir_key'               => $current['dir_key'],
 		);
 
 		$allowed_intervals = array( 'lpw_1h', 'lpw_6h', 'lpw_12h', 'lpw_24h' );
@@ -841,10 +861,7 @@ class LPW_Admin {
 		$new['threshold']        = max( 0, min( 100, $new['threshold'] ) );
 		$new['region_threshold'] = max( 0, min( 100, $new['region_threshold'] ) );
 
-		update_option( 'lookit_page_watch_settings', $new, false );
-		LPW_Cron::reschedule();
-
-		self::redirect( __( 'Settings saved and the schedule updated.', 'lookit-page-watch' ), 'success', 'lookit-page-watch-settings' );
+		return $new;
 	}
 
 	/**

@@ -196,13 +196,13 @@ class LPW_Mailer {
 			}
 
 			$rows[] = array(
-				'page'       => $page,
-				'capture'    => $latest,
-				'status'     => $status,
-				'baseline'   => LPW_Store::baseline_url( $page ),
-				'current'    => LPW_Store::capture_url( $latest ),
-				'diff'       => $latest->diff_pct,
-				'region'     => $latest->region_pct,
+				'page'     => $page,
+				'capture'  => $latest,
+				'status'   => $status,
+				'baseline' => LPW_Store::baseline_url( $page ),
+				'current'  => LPW_Store::capture_url( $latest ),
+				'diff'     => $latest->diff_pct,
+				'region'   => $latest->region_pct,
 			);
 		}
 
@@ -241,11 +241,11 @@ class LPW_Mailer {
 	 * @return string
 	 */
 	private static function build_html( $rows, $changed, $failed ) {
-		$teal    = '#028673';
-		$site    = wp_parse_url( home_url(), PHP_URL_HOST );
-		$admin   = admin_url( 'admin.php?page=lookit-page-watch' );
-		$when    = wp_date( 'g:i a, D M j' );
-		$total   = count( $rows );
+		$teal  = '#028673';
+		$site  = wp_parse_url( home_url(), PHP_URL_HOST );
+		$admin = admin_url( 'admin.php?page=lookit-page-watch' );
+		$when  = wp_date( 'g:i a, D M j' );
+		$total = count( $rows );
 
 		$summary = sprintf(
 			/* translators: 1: host, 2: time, 3: total pages, 4: changed count. */
@@ -331,7 +331,7 @@ class LPW_Mailer {
 			$badge_bg   = '#fcf0f0';
 			$badge_fg   = '#a02222';
 			$badge_text = __( 'Changed', 'lookit-page-watch' );
-			$note = sprintf(
+			$note       = sprintf(
 				/* translators: 1: whole page percentage, 2: worst area percentage. */
 				__( '%1$s of the page differs from the baseline, and up to %2$s within a single area.', 'lookit-page-watch' ),
 				number_format_i18n( (float) $row['diff'], 1 ) . '%',
