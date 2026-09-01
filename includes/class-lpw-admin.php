@@ -399,7 +399,7 @@ class LPW_Admin {
 							<label for="lpw-endpoint"><?php esc_html_e( 'n8n webhook URL', 'lookit-page-watch' ); ?></label>
 							<div>
 								<input type="url" id="lpw-endpoint" name="endpoint" value="<?php echo esc_attr( $s['endpoint'] ); ?>" placeholder="https://n8n.lookitai.com/webhook/page-watch-capture" class="regular-text">
-								<p class="description"><?php esc_html_e( 'WordPress cannot render a screenshot, so capture runs on the platform. This plugin sends a URL and stores the image that comes back.', 'lookit-page-watch' ); ?></p>
+								<p class="description"><?php esc_html_e( 'WordPress cannot render a screenshot, so capture runs on the platform. Use HTTPS unless n8n is on localhost. This plugin sends a URL and stores the image that comes back.', 'lookit-page-watch' ); ?></p>
 							</div>
 						</div>
 						<div class="lpw-field">
@@ -831,7 +831,7 @@ class LPW_Admin {
 		$submitted_token = isset( $posted['token'] ) ? sanitize_text_field( (string) $posted['token'] ) : '';
 
 		$new = array(
-			'endpoint'              => isset( $posted['endpoint'] ) ? esc_url_raw( (string) $posted['endpoint'] ) : '',
+			'endpoint'              => isset( $posted['endpoint'] ) ? self::sanitize_endpoint( (string) $posted['endpoint'] ) : '',
 			'token'                 => '' !== $submitted_token ? $submitted_token : (string) $current['token'],
 			'interval'              => isset( $posted['interval'] ) ? sanitize_key( (string) $posted['interval'] ) : 'lpw_24h',
 			'anchor'                => isset( $posted['anchor'] ) ? sanitize_text_field( (string) $posted['anchor'] ) : '06:00',
@@ -862,6 +862,33 @@ class LPW_Admin {
 		$new['region_threshold'] = max( 0, min( 100, $new['region_threshold'] ) );
 
 		return $new;
+	}
+
+	/**
+	 * Require encryption except for capture services on this machine.
+	 *
+	 * @param string $endpoint Capture service URL.
+	 * @return string
+	 */
+	public static function sanitize_endpoint( $endpoint ) {
+		$endpoint = esc_url_raw( trim( $endpoint ) );
+		$parts    = wp_parse_url( $endpoint );
+
+		if ( ! is_array( $parts ) || empty( $parts['scheme'] ) || empty( $parts['host'] ) ) {
+			return '';
+		}
+
+		$scheme = strtolower( $parts['scheme'] );
+		$host   = strtolower( trim( $parts['host'], '[]' ) );
+		if ( 'https' === $scheme ) {
+			return $endpoint;
+		}
+
+		if ( 'http' === $scheme && in_array( $host, array( 'localhost', '127.0.0.1', '::1' ), true ) ) {
+			return $endpoint;
+		}
+
+		return '';
 	}
 
 	/**

@@ -200,12 +200,18 @@ class LPW_Store {
 		$id   = (int) $id;
 		$page = self::get_page( $id );
 
-		foreach ( self::get_captures( $id, 500 ) as $capture ) {
-			self::delete_file( $capture->file );
-			if ( (int) $capture->attachment_id ) {
-				LPW_Media::remove( (int) $capture->attachment_id );
+		do {
+			$captures = self::get_captures( $id, 100 );
+			foreach ( $captures as $capture ) {
+				self::delete_file( $capture->file );
+				if ( (int) $capture->attachment_id ) {
+					LPW_Media::remove( (int) $capture->attachment_id );
+				}
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- custom plugin table cleanup.
+				$wpdb->delete( self::captures_table(), array( 'id' => (int) $capture->id ), array( '%d' ) );
 			}
-		}
+		} while ( ! empty( $captures ) );
+
 		if ( $page ) {
 			if ( $page->baseline_file ) {
 				self::delete_file( $page->baseline_file );

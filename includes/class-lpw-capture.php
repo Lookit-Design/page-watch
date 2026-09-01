@@ -16,6 +16,11 @@ defined( 'ABSPATH' ) || exit;
  */
 class LPW_Capture {
 
+	const MAX_IMAGE_BYTES    = 8388608;
+	const MAX_RESPONSE_BYTES = 11534336;
+	const MAX_IMAGE_PIXELS   = 12000000;
+	const MAX_IMAGE_EDGE     = 10000;
+
 	/**
 	 * Capture one page.
 	 *
@@ -49,19 +54,35 @@ class LPW_Capture {
 			return self::result( false, $attempt['message'] );
 		}
 
-		$body = $attempt['body'];
+		$body    = $attempt['body'];
+		$encoded = (string) $body['image_base64'];
 
-		$binary = base64_decode( $body['image_base64'], true ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- decoding our own capture payload.
+		if ( strlen( $encoded ) > (int) ceil( self::MAX_IMAGE_BYTES * 4 / 3 ) + 4 ) {
+			$message = __( 'The capture service returned an image that is too large.', 'lookit-page-watch' );
+			LPW_Store::add_capture( $page_id, '', null, 'failed', $message );
+			return self::result( false, $message );
+		}
 
-		if ( false === $binary || strlen( $binary ) < 512 ) {
+		$binary = base64_decode( $encoded, true ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- decoding our own capture payload.
+
+		if ( false === $binary || strlen( $binary ) < 512 || strlen( $binary ) > self::MAX_IMAGE_BYTES ) {
 			$message = __( 'The capture service returned an unreadable image.', 'lookit-page-watch' );
 			LPW_Store::add_capture( $page_id, '', null, 'failed', $message );
 			return self::result( false, $message );
 		}
 
-		$info = @getimagesizefromstring( $binary ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- invalid payloads are rejected below.
-		$mime = ( is_array( $info ) && ! empty( $info['mime'] ) ) ? strtolower( (string) $info['mime'] ) : '';
-		if ( ! LPW_Media::is_allowed_mime( $mime ) ) {
+		$info   = @getimagesizefromstring( $binary ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- invalid payloads are rejected below.
+		$mime   = ( is_array( $info ) && ! empty( $info['mime'] ) ) ? strtolower( (string) $info['mime'] ) : '';
+		$width  = is_array( $info ) && isset( $info[0] ) ? (int) $info[0] : 0;
+		$height = is_array( $info ) && isset( $info[1] ) ? (int) $info[1] : 0;
+		if (
+			! LPW_Media::is_allowed_mime( $mime )
+			|| $width < 1
+			|| $height < 1
+			|| $width > self::MAX_IMAGE_EDGE
+			|| $height > self::MAX_IMAGE_EDGE
+			|| ( $width * $height ) > self::MAX_IMAGE_PIXELS
+		) {
 			$message = __( 'The capture service returned an unreadable image.', 'lookit-page-watch' );
 			LPW_Store::add_capture( $page_id, '', null, 'failed', $message );
 			return self::result( false, $message );
@@ -154,6 +175,14 @@ class LPW_Capture {
 		$attempts = 3;
 		$last     = __( 'The capture service could not be reached.', 'lookit-page-watch' );
 
+		if ( '' === LPW_Admin::sanitize_endpoint( $endpoint ) ) {
+			return array(
+				'ok'      => false,
+				'message' => __( 'The capture endpoint must use HTTPS unless it is on localhost.', 'lookit-page-watch' ),
+				'body'    => null,
+			);
+		}
+
 		for ( $try = 1; $try <= $attempts; $try++ ) {
 			if ( $try > 1 ) {
 				sleep( 3 );
@@ -162,15 +191,16 @@ class LPW_Capture {
 			$response = wp_remote_post(
 				$endpoint,
 				array(
-					'timeout'     => 40,
-					'httpversion' => '1.1',
-					'headers'     => array(
+					'timeout'             => 40,
+					'httpversion'         => '1.1',
+					'headers'             => array(
 						'Content-Type'   => 'application/json',
 						'X-Lookit-Token' => (string) lookit_page_watch_setting( 'token' ),
 						'Accept'         => 'application/json',
 						'Connection'     => 'close',
 					),
-					'body'        => wp_json_encode( $payload ),
+					'body'                => wp_json_encode( $payload ),
+					'limit_response_size' => self::MAX_RESPONSE_BYTES,
 				)
 			);
 
@@ -182,8 +212,13 @@ class LPW_Capture {
 				break;
 			}
 
-			$code = (int) wp_remote_retrieve_response_code( $response );
-			$body = json_decode( wp_remote_retrieve_body( $response ), true );
+			$code          = (int) wp_remote_retrieve_response_code( $response );
+			$response_body = wp_remote_retrieve_body( $response );
+			if ( strlen( $response_body ) >= self::MAX_RESPONSE_BYTES ) {
+				$last = __( 'The capture service response was too large.', 'lookit-page-watch' );
+				break;
+			}
+			$body = json_decode( $response_body, true );
 
 			if ( 200 === $code && is_array( $body ) && ! empty( $body['ok'] ) && ! empty( $body['image_base64'] ) ) {
 				return array(

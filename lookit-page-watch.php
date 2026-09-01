@@ -3,7 +3,7 @@
  * Plugin Name:       Lookit Page Watch
  * Plugin URI:        https://lookitdesign.com/
  * Description:       Captures scheduled screenshots of selected pages, keeps a locked baseline image for each one, and emails a side-by-side comparison so changes can be spotted by eye.
- * Version:           0.8.2
+ * Version:           0.8.3
  * Requires at least: 6.4
  * Requires PHP:      8.1
  * Author:            Lookit Design
@@ -33,7 +33,7 @@ defined( 'ABSPATH' ) || exit;
  * ---------------------------------------------------------------------------
  */
 
-define( 'LPW_VERSION', '0.8.2' );
+define( 'LPW_VERSION', '0.8.3' );
 define( 'LPW_FILE', __FILE__ );
 define( 'LPW_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LPW_URL', plugin_dir_url( __FILE__ ) );
