@@ -65,7 +65,21 @@ Success:
 { "ok": true, "provider": "mshots", "mime": "image/jpeg", "captured_at": "...", "image_base64": "..." }
 ```
 
-Failure returns `{ "ok": false, "error": "..." }` with 401 (bad token or URL) or 502 (render failed). Provider errors are replaced with fixed messages so Browserless credentials cannot be returned to WordPress.
+Failure returns `{ "ok": false, "error": "..." }`:
+
+| Status | Meaning |
+| --- | --- |
+| 401 | The shared token is missing, wrong, or still the placeholder |
+| 403 | The token was accepted but the requested hostname is not in `allowed_hosts`, `allowed_hosts` is unset, or the URL is not http/https |
+| 502 | The token and hostname were fine but the render failed |
+
+Nothing about `allowed_hosts` is reported until the token has been accepted, so the allowlist cannot be probed by an unauthenticated caller. Provider errors are replaced with fixed messages so Browserless credentials cannot be returned to WordPress.
+
+## Connection test
+
+**Test the capture service** in WordPress sends `{ "mode": "ping", "source": "https://mysite.com/" }`. The workflow checks the token and answers `{ "ok": true, "ping": true, "provider": "..." }` without rendering anything.
+
+A ping deliberately skips the host allowlist. Confirming the endpoint and token should not require this site's own address to be a host you have chosen to capture. Rendering is proved by running a real capture from the watchlist.
 
 ## Notes for Vadim
 
@@ -82,5 +96,7 @@ Failure returns `{ "ok": false, "error": "..." }` with 401 (bad token or URL) or
 - **Idle connection length.** The mShots branch pauses to let the render finish, and the webhook connection back to WordPress is idle for the whole of it. That produced `cURL error 56: unexpected eof` on the WordPress side while the workflow itself reported success. The pause is down to 5 seconds and the plugin now retries transport failures and not-ready responses, up to three attempts with a 3 second gap. Responses carry a `retry` flag so the plugin knows which failures are worth repeating.
 - **Uninstall is conditional.** `uninstall.php` returns early when `preserve_on_uninstall` is set, which it is by default. Scheduled events are always cleared. Anything added to the teardown must go below that early return, or it will run when it should not.
 - **SSRF.** The workflow requires each requested hostname to match `allowed_hosts`. Browserless also requires a network-level block on private and metadata ranges because a permitted site can redirect Chromium.
+- **Refusal reasons are separated.** `Validate request` reports `token`, `url`, `hosts_unset` or `host`. `Token rejected?` routes the first to `Respond unauthorised` (401) and the rest to `Respond refused` (403). Previously every refusal was a 401 and the plugin told people to check their token even when the real cause was the allowlist. The reason is only computed once the token has passed, so keep that ordering if the node is edited.
+- **Status codes are static.** Both refusal nodes carry a fixed `responseCode` rather than an expression, which is why there are two of them instead of one.
 - **Resource limits.** Width is clamped to 320–1920px and images over 8 MB are rejected by both the workflow and plugin.
 - **WP-Cron.** Hourly capture drifts on quiet sites. Document `wp cron event run --due-now` from server cron.

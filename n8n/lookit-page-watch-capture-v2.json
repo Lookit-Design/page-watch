@@ -47,6 +47,12 @@
               "type": "string"
             },
             {
+              "id": "cfg-mode",
+              "name": "mode",
+              "value": "={{ $json.body.mode === 'ping' ? 'ping' : 'capture' }}",
+              "type": "string"
+            },
+            {
               "id": "cfg-url",
               "name": "url",
               "value": "={{ $json.body.url }}",
@@ -86,7 +92,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const cfg = $input.first().json;\nconst placeholder = 'CHANGE-ME-LONG-RANDOM-STRING';\nconst hostPlaceholder = 'change-me-allowed-hosts';\nconst patterns = String( cfg.allowed_hosts || '' ).split( ',' ).map( value => value.trim().toLowerCase().replace( /\\.$/, '' ) ).filter( Boolean );\nlet parsed = null;\ntry {\n  parsed = new URL( String( cfg.url || '' ) );\n} catch ( error ) {}\nconst host = parsed ? parsed.hostname.toLowerCase().replace( /\\.$/, '' ) : '';\nconst protocolAllowed = parsed && ( parsed.protocol === 'http:' || parsed.protocol === 'https:' ) && ! parsed.username && ! parsed.password;\nconst hostsConfigured = patterns.length > 0 && ! patterns.includes( hostPlaceholder );\nconst hostAllowed = protocolAllowed && hostsConfigured && patterns.some( pattern => pattern.startsWith( '*.' ) ? host.endsWith( pattern.slice( 1 ) ) && host !== pattern.slice( 2 ) : host === pattern );\nconst tokenAllowed = typeof cfg.shared_token === 'string' && cfg.shared_token.length >= 32 && cfg.shared_token !== placeholder && cfg.sent_token === cfg.shared_token;\nconst requestedWidth = Number( cfg.width );\nconst width = Number.isFinite( requestedWidth ) ? Math.max( 320, Math.min( 1920, Math.round( requestedWidth ) ) ) : 1440;\nconst url = parsed ? parsed.toString() : '';\nreturn [ { json: {\n  authorised: Boolean( tokenAllowed && hostAllowed ),\n  provider: cfg.provider === 'browserless' ? 'browserless' : 'mshots',\n  browserless_url: cfg.browserless_url,\n  url,\n  width,\n  full_page: Boolean( cfg.full_page ),\n  mshots_target: url ? url + ( url.includes( '?' ) ? '&' : '?' ) + 'pw=' + Date.now() : ''\n} } ];"
+        "jsCode": "const cfg = $input.first().json;\nconst placeholder = 'CHANGE-ME-LONG-RANDOM-STRING';\nconst hostPlaceholder = 'change-me-allowed-hosts';\nconst mode = cfg.mode === 'ping' ? 'ping' : 'capture';\nconst patterns = String( cfg.allowed_hosts || '' ).split( ',' ).map( value => value.trim().toLowerCase().replace( /\\.$/, '' ) ).filter( Boolean );\nlet parsed = null;\ntry {\n  parsed = new URL( String( cfg.url || '' ) );\n} catch ( error ) {}\nconst host = parsed ? parsed.hostname.toLowerCase().replace( /\\.$/, '' ) : '';\nconst protocolAllowed = parsed && ( parsed.protocol === 'http:' || parsed.protocol === 'https:' ) && ! parsed.username && ! parsed.password;\nconst hostsConfigured = patterns.length > 0 && ! patterns.includes( hostPlaceholder );\nconst hostAllowed = protocolAllowed && hostsConfigured && patterns.some( pattern => pattern.startsWith( '*.' ) ? host.endsWith( pattern.slice( 1 ) ) && host !== pattern.slice( 2 ) : host === pattern );\nconst tokenAllowed = typeof cfg.shared_token === 'string' && cfg.shared_token.length >= 32 && cfg.shared_token !== placeholder && cfg.sent_token === cfg.shared_token;\nconst requestedWidth = Number( cfg.width );\nconst width = Number.isFinite( requestedWidth ) ? Math.max( 320, Math.min( 1920, Math.round( requestedWidth ) ) ) : 1440;\nconst url = parsed ? parsed.toString() : '';\n\n// A ping proves only that the endpoint answers and the token matches, so it\n// renders nothing and skips the host allowlist. Without that, a site whose own\n// address is not on the allowlist could never test its connection.\nconst authorised = tokenAllowed && ( mode === 'ping' || hostAllowed );\n\n// Nothing about the allowlist is reported to a caller that failed the token\n// check, so this cannot be used to probe which hosts are configured.\nlet reason = '';\nif ( ! authorised ) {\n  if ( ! tokenAllowed ) {\n    reason = 'token';\n  } else if ( ! protocolAllowed ) {\n    reason = 'url';\n  } else if ( ! hostsConfigured ) {\n    reason = 'hosts_unset';\n  } else {\n    reason = 'host';\n  }\n}\n\nreturn [ { json: {\n  authorised,\n  reason,\n  mode,\n  provider: cfg.provider === 'browserless' ? 'browserless' : 'mshots',\n  browserless_url: cfg.browserless_url,\n  url,\n  width,\n  full_page: Boolean( cfg.full_page ),\n  mshots_target: url ? url + ( url.includes( '?' ) ? '&' : '?' ) + 'pw=' + Date.now() : ''\n} } ];"
       },
       "id": "b2c3d4e5-0014-4000-8000-000000000014",
       "name": "Validate request",
@@ -344,7 +350,7 @@
     {
       "parameters": {
         "respondWith": "text",
-        "responseBody": "={{ JSON.stringify({ ok: false, error: 'Unauthorised or invalid URL.' }) }}",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: 'Invalid or missing capture token.' }) }}",
         "options": {
           "responseCode": 401,
           "responseHeaders": {
@@ -362,7 +368,123 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
+        -40,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ping-1",
+              "leftValue": "={{ $json.mode }}",
+              "rightValue": "ping",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2c3d4e5-0015-4000-8000-000000000015",
+      "name": "Ping?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -270,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ JSON.stringify({ ok: true, ping: true, provider: $json.provider }) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "b2c3d4e5-0016-4000-8000-000000000016",
+      "name": "Respond ping OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
         -160,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: {'url': 'The requested address is not a valid http or https URL.', 'hosts_unset': 'The capture workflow has no allowed_hosts configured.', 'host': 'That hostname is not in the workflow allowed_hosts list.'}[$json.reason] || 'The capture request was refused.' }) }}",
+        "options": {
+          "responseCode": 403,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "b2c3d4e5-0017-4000-8000-000000000017",
+      "name": "Respond refused",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -40,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "reason-1",
+              "leftValue": "={{ $json.reason }}",
+              "rightValue": "token",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2c3d4e5-0018-4000-8000-000000000018",
+      "name": "Token rejected?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -270,
         560
       ]
     }
@@ -405,14 +527,14 @@
       "main": [
         [
           {
-            "node": "Which provider",
+            "node": "Ping?",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Respond unauthorised",
+            "node": "Token rejected?",
             "type": "main",
             "index": 0
           }
@@ -511,6 +633,42 @@
         [
           {
             "node": "Collect mShots image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ping?": {
+      "main": [
+        [
+          {
+            "node": "Respond ping OK",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Which provider",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token rejected?": {
+      "main": [
+        [
+          {
+            "node": "Respond unauthorised",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond refused",
             "type": "main",
             "index": 0
           }

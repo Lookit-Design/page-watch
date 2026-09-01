@@ -5,6 +5,7 @@
 bin/
 build/
 tests/
+n8n/tests/
 node_modules/
 vendor/
 .gitignore

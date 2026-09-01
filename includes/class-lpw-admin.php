@@ -418,7 +418,7 @@ class LPW_Admin {
 						<div class="lpw-field">
 							<label><?php esc_html_e( 'Connection', 'lookit-page-watch' ); ?></label>
 							<div>
-								<p class="description"><?php esc_html_e( 'Save first, then use Test the capture service at the bottom of this screen. It requests a small screenshot of this site to confirm the workflow answers.', 'lookit-page-watch' ); ?></p>
+								<p class="description"><?php esc_html_e( 'Save first, then use Test the capture service at the bottom of this screen. It confirms the workflow answers and accepts the shared token, without taking a screenshot.', 'lookit-page-watch' ); ?></p>
 							</div>
 						</div>
 					</div>

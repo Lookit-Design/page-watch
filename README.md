@@ -39,7 +39,7 @@ This plugin is installed from GitHub, not from WordPress.org.
 1. Import `n8n/lookit-page-watch-capture-v2.json` into n8n, then set the shared token and allowed capture hosts in the Config node. See `n8n/SETUP.md`.
 2. Activate the workflow and copy its production webhook URL.
 3. In WordPress, go to **Page Watch → Schedule and email**. Paste the webhook URL and the same shared token, then save.
-4. Use **Test the capture service** to confirm the connection.
+4. Use **Test the capture service** to confirm the endpoint answers and the token matches. It takes no screenshot, so this site does not need to be in `allowed_hosts`.
 5. Add pages to the watchlist and run a capture. The first capture of each page becomes its baseline.
 
 The token field stays blank after save; leave it empty to keep the stored value.
@@ -87,6 +87,12 @@ bin/install-wp-tests.sh wordpress_test root '' 127.0.0.1 latest
 composer test
 ```
 
+The authorisation logic in the bundled n8n workflow is tested separately, straight out of the workflow file, with Node 22 or newer and no dependencies:
+
+```bash
+node --test 'n8n/tests/*.test.mjs'
+```
+
 ### Coding Standards
 
 This project follows the WordPress Coding Standards and checks PHP cross-version compatibility:
@@ -104,7 +110,7 @@ Every push and pull request runs the following GitHub Actions workflows:
 
 | Workflow | Purpose |
 | --- | --- |
-| [Lint](../../actions/workflows/lint.yml) | `php -l` syntax check across the supported PHP versions |
+| [Lint](../../actions/workflows/lint.yml) | `php -l` syntax check across the supported PHP versions, plus the n8n workflow authorisation tests |
 | [Coding Standards](../../actions/workflows/coding-standards.yml) | WordPress Coding Standards (PHPCS) |
 | [Plugin Check](../../actions/workflows/plugin-check.yml) | Official WordPress Plugin Check |
 | [Test](../../actions/workflows/test.yml) | PHPUnit across a WordPress × PHP matrix |
