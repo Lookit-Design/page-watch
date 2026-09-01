@@ -7,7 +7,7 @@ class Test_Lookit_Page_Watch_Plugin extends WP_UnitTestCase {
 
 	public function test_plugin_defines_version() {
 		$this->assertTrue( defined( 'LPW_VERSION' ) );
-		$this->assertSame( '0.8.4', LPW_VERSION );
+		$this->assertSame( '0.8.5', LPW_VERSION );
 	}
 
 	public function test_default_settings_include_required_keys() {
