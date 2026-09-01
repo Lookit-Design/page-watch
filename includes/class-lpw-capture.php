@@ -59,7 +59,13 @@ class LPW_Capture {
 			return self::result( false, $message );
 		}
 
-		$mime = isset( $body['mime'] ) ? (string) $body['mime'] : 'image/png';
+		$info = @getimagesizefromstring( $binary ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- invalid payloads are rejected below.
+		$mime = ( is_array( $info ) && ! empty( $info['mime'] ) ) ? strtolower( (string) $info['mime'] ) : '';
+		if ( ! LPW_Media::is_allowed_mime( $mime ) ) {
+			$message = __( 'The capture service returned an unreadable image.', 'lookit-page-watch' );
+			LPW_Store::add_capture( $page_id, '', null, 'failed', $message );
+			return self::result( false, $message );
+		}
 		$page_label = sanitize_title( $page->label );
 		$stamp      = gmdate( 'Ymd-His' );
 

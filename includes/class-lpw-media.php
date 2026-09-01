@@ -83,7 +83,7 @@ class LPW_Media {
 		$metadata = wp_generate_attachment_metadata( $attachment_id, $dest );
 		wp_update_attachment_metadata( $attachment_id, $metadata );
 
-		$page = LPW_Store::get_page( $page_id );
+		$page  = LPW_Store::get_page( $page_id );
 		$label = $page ? $page->label : '';
 
 		update_post_meta( $attachment_id, '_lpw_page_id', (int) $page_id );
@@ -189,5 +189,15 @@ class LPW_Media {
 		$mime = strtolower( trim( (string) $mime ) );
 
 		return isset( $map[ $mime ] ) ? $map[ $mime ] : 'png';
+	}
+
+	/**
+	 * Whether a mime type is a stored capture format.
+	 *
+	 * @param string $mime Mime type.
+	 * @return bool
+	 */
+	public static function is_allowed_mime( $mime ) {
+		return in_array( strtolower( trim( (string) $mime ) ), array( 'image/png', 'image/jpeg', 'image/jpg', 'image/webp' ), true );
 	}
 }

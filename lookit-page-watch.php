@@ -3,7 +3,7 @@
  * Plugin Name:       Lookit Page Watch
  * Plugin URI:        https://lookitdesign.com/
  * Description:       Captures scheduled screenshots of selected pages, keeps a locked baseline image for each one, and emails a side-by-side comparison so changes can be spotted by eye.
- * Version:           0.8.0
+ * Version:           0.8.1
  * Requires at least: 6.4
  * Requires PHP:      8.1
  * Author:            Lookit Design
@@ -33,7 +33,7 @@ defined( 'ABSPATH' ) || exit;
  * ---------------------------------------------------------------------------
  */
 
-define( 'LPW_VERSION', '0.8.0' );
+define( 'LPW_VERSION', '0.8.1' );
 define( 'LPW_FILE', __FILE__ );
 define( 'LPW_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LPW_URL', plugin_dir_url( __FILE__ ) );
@@ -53,21 +53,21 @@ require_once LPW_DIR . 'includes/class-lpw-admin.php';
  */
 function lookit_page_watch_default_settings() {
 	return array(
-		'endpoint'     => '',
-		'token'        => '',
-		'interval'     => 'lpw_24h',
-		'anchor'       => '06:00',
-		'width'        => 1440,
-		'full_page'    => 1,
-		'threshold'    => 2.0,
-		'region_threshold' => 10.0,
-		'digest_mode'  => 'daily_changes',
-		'digest_time'  => '08:00',
-		'recipients'   => '',
-		'retain_days'  => 30,
-		'use_media_library' => 1,
+		'endpoint'              => '',
+		'token'                 => '',
+		'interval'              => 'lpw_24h',
+		'anchor'                => '06:00',
+		'width'                 => 1440,
+		'full_page'             => 1,
+		'threshold'             => 2.0,
+		'region_threshold'      => 10.0,
+		'digest_mode'           => 'daily_changes',
+		'digest_time'           => '08:00',
+		'recipients'            => '',
+		'retain_days'           => 30,
+		'use_media_library'     => 1,
 		'preserve_on_uninstall' => 1,
-		'dir_key'      => '',
+		'dir_key'               => '',
 	);
 }
 
@@ -88,12 +88,12 @@ function lookit_page_watch_get_settings() {
  * Read a single setting.
  *
  * @param string $key     Setting key.
- * @param mixed  $default Fallback.
+ * @param mixed  $fallback Fallback.
  * @return mixed
  */
-function lookit_page_watch_setting( $key, $default = null ) {
+function lookit_page_watch_setting( $key, $fallback = null ) {
 	$settings = lookit_page_watch_get_settings();
-	return array_key_exists( $key, $settings ) ? $settings[ $key ] : $default;
+	return array_key_exists( $key, $settings ) ? $settings[ $key ] : $fallback;
 }
 
 /**
@@ -117,6 +117,18 @@ function lookit_page_watch_storage_dir() {
 
 	if ( ! file_exists( $path ) ) {
 		wp_mkdir_p( $path );
+	}
+
+	$index = trailingslashit( $path ) . 'index.php';
+	if ( ! file_exists( $index ) ) {
+		global $wp_filesystem;
+		if ( ! $wp_filesystem ) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+			WP_Filesystem();
+		}
+		if ( $wp_filesystem ) {
+			$wp_filesystem->put_contents( $index, "<?php\n// Silence is golden.\n", FS_CHMOD_FILE );
+		}
 	}
 
 	return array(

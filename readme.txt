@@ -4,7 +4,7 @@ Tags: screenshots, monitoring, visual regression, email report, scheduled
 Requires at least: 6.4
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.8.0
+Stable tag: 0.8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -106,6 +106,10 @@ On low-traffic sites, no. WP-Cron only fires when someone visits. For dependable
 
 == Changelog ==
 
+= 0.8.1 =
+* Shared capture token is no longer shown in the settings form. Leave the field blank to keep the saved value.
+* Capture responses are accepted only when they decode as PNG, JPEG, or WebP.
+
 = 0.8.0 =
 * Deleting the plugin no longer erases its data by default. The watchlist, webhook URL, shared token, recipients and baselines are kept, and a reinstall picks them straight back up. The behaviour can be switched off under Storage when a clean removal is genuinely wanted.
 
@@ -146,6 +150,9 @@ On low-traffic sites, no. WP-Cron only fires when someone visits. For dependable
 * First working version: watchlist, locked baselines, scheduled capture through n8n, difference detection, side-by-side comparison screen, HTML digest email.
 
 == Upgrade Notice ==
+
+= 0.8.1 =
+The capture token is no longer displayed after save. Leave the field blank to keep the current token.
 
 = 0.8.0 =
 Settings and watchlist survive deleting the plugin. No need to re-enter the webhook URL and token on every new build.

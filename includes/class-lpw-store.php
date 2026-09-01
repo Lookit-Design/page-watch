@@ -166,6 +166,25 @@ class LPW_Store {
 	 */
 	public static function update_page( $id, array $data ) {
 		global $wpdb;
+
+		$allowed = array(
+			'label'                  => true,
+			'url'                    => true,
+			'status'                 => true,
+			'width'                  => true,
+			'threshold'              => true,
+			'baseline_file'          => true,
+			'baseline_attachment_id' => true,
+			'baseline_at'            => true,
+			'baseline_locked'        => true,
+			'latest_capture_id'      => true,
+		);
+		$data    = array_intersect_key( $data, $allowed );
+
+		if ( empty( $data ) ) {
+			return;
+		}
+
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- custom plugin table; results change on every capture run, so caching them would defeat the point.
 		$wpdb->update( self::pages_table(), $data, array( 'id' => (int) $id ) );
 	}

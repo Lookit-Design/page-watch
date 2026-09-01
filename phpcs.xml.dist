@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<ruleset name="Lookit Page Watch">
+    <description>Coding standards for the Lookit Page Watch plugin.</description>
+
+    <file>.</file>
+
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+    <exclude-pattern>*/node_modules/*</exclude-pattern>
+    <exclude-pattern>*/build/*</exclude-pattern>
+
+    <arg name="extensions" value="php"/>
+    <arg name="basepath" value="."/>
+    <arg name="parallel" value="8"/>
+    <arg name="colors"/>
+    <arg value="sp"/>
+
+    <rule ref="WordPress-Extra"/>
+
+    <rule ref="WordPress.WP.I18n">
+        <properties>
+            <property name="text_domain" type="array">
+                <element value="lookit-page-watch"/>
+            </property>
+        </properties>
+    </rule>
+
+    <rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+        <properties>
+            <property name="prefixes" type="array">
+                <element value="lookit_page_watch"/>
+                <element value="LPW_"/>
+                <element value="LPW"/>
+            </property>
+        </properties>
+    </rule>
+    <rule ref="WordPress.NamingConventions.PrefixAllGlobals.ShortPrefixPassed">
+        <severity>0</severity>
+    </rule>
+
+    <config name="minimum_wp_version" value="6.4"/>
+
+    <rule ref="PHPCompatibilityWP"/>
+    <config name="testVersion" value="8.1-"/>
+
+    <rule ref="WordPress.NamingConventions.ValidVariableName">
+        <exclude-pattern>tests/*</exclude-pattern>
+    </rule>
+    <rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+        <exclude-pattern>tests/*</exclude-pattern>
+    </rule>
+    <rule ref="WordPress.Files.FileName">
+        <exclude-pattern>tests/*</exclude-pattern>
+    </rule>
+</ruleset>
