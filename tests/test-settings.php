@@ -67,4 +67,18 @@ class Test_Lookit_Page_Watch_Credential_Hygiene extends WP_UnitTestCase {
 		$this->assertArrayNotHasKey( 'lookit_page_watch_settings', wp_load_alloptions() );
 		$this->assertSame( self::SECRET, lookit_page_watch_setting( 'token' ) );
 	}
+
+	public function test_existing_autoloaded_settings_are_migrated() {
+		$settings          = lookit_page_watch_default_settings();
+		$settings['token'] = self::SECRET;
+		delete_option( 'lookit_page_watch_settings' );
+		add_option( 'lookit_page_watch_settings', $settings, '', true );
+
+		$this->assertArrayHasKey( 'lookit_page_watch_settings', wp_load_alloptions() );
+
+		lookit_page_watch_maybe_disable_settings_autoload();
+
+		$this->assertArrayNotHasKey( 'lookit_page_watch_settings', wp_load_alloptions() );
+		$this->assertSame( self::SECRET, lookit_page_watch_setting( 'token' ) );
+	}
 }
