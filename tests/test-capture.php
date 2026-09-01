@@ -33,6 +33,9 @@ class Test_Lookit_Page_Watch_Capture extends WP_UnitTestCase {
 			remove_filter( 'pre_http_request', $this->interceptor, 10 );
 			$this->interceptor = null;
 		}
+		foreach ( LPW_Store::get_pages() as $page ) {
+			LPW_Store::delete_page( (int) $page->id );
+		}
 		$this->seen = array();
 		delete_option( 'lookit_page_watch_settings' );
 		parent::tear_down();
@@ -76,6 +79,45 @@ class Test_Lookit_Page_Watch_Capture extends WP_UnitTestCase {
 	private function first_request_body() {
 		$this->assertNotEmpty( $this->seen, 'No request reached the HTTP layer.' );
 		return json_decode( $this->seen[0]['args']['body'], true );
+	}
+
+	/**
+	 * Create a minimal PNG header with chosen dimensions.
+	 *
+	 * @param int $width  Reported width.
+	 * @param int $height Reported height.
+	 * @return string Image-like bytes.
+	 */
+	private function png_header( $width, $height ) {
+		$header  = "\x89PNG\r\n\x1a\n";
+		$header .= pack( 'N', 13 ) . 'IHDR';
+		$header .= pack( 'NNCCCCC', $width, $height, 8, 2, 0, 0, 0 );
+		$header .= pack( 'N', 0 );
+		return str_pad( $header, 512, "\0" );
+	}
+
+	/**
+	 * Generate a real PNG.
+	 *
+	 * @return string PNG bytes.
+	 */
+	private function valid_png() {
+		$image = imagecreatetruecolor( 100, 100 );
+		$teal  = imagecolorallocate( $image, 2, 134, 115 );
+		for ( $y = 0; $y < 100; ++$y ) {
+			for ( $x = 0; $x < 100; ++$x ) {
+				$colour = 0 === ( ( $x + $y ) % 3 )
+					? $teal
+					: ( ( ( $x * 53 + $y * 97 ) & 255 ) << 16 )
+						| ( ( ( $x * 29 + $y * 71 ) & 255 ) << 8 )
+						| ( ( $x * 11 + $y * 43 ) & 255 );
+				imagesetpixel( $image, $x, $y, $colour );
+			}
+		}
+		ob_start();
+		imagepng( $image );
+		$bytes = ob_get_clean();
+		return $bytes;
 	}
 
 	public function test_connection_test_pings_instead_of_requesting_a_screenshot() {
@@ -181,5 +223,88 @@ class Test_Lookit_Page_Watch_Capture extends WP_UnitTestCase {
 		$this->assertFalse( $result['ok'] );
 		$this->assertStringContainsString( 'HTTPS', $result['message'] );
 		$this->assertSame( array(), $this->seen, 'The request should never leave WordPress.' );
+	}
+
+	public function test_capture_rejects_an_image_over_the_byte_limit() {
+		$page_id = LPW_Store::add_page( 'https://example.com/too-many-bytes/' );
+		$encoded = str_repeat( 'A', (int) ceil( LPW_Capture::MAX_IMAGE_BYTES * 4 / 3 ) + 5 );
+
+		$this->answer_with(
+			200,
+			array(
+				'ok'           => true,
+				'image_base64' => $encoded,
+			)
+		);
+
+		$result = LPW_Capture::run( $page_id );
+
+		$this->assertFalse( $result['ok'] );
+		$this->assertStringContainsString( 'too large', $result['message'] );
+		$this->assertSame( 'failed', LPW_Store::latest_capture( $page_id )->state );
+	}
+
+	public function test_capture_rejects_an_image_with_an_oversized_edge() {
+		$page_id = LPW_Store::add_page( 'https://example.com/too-wide/' );
+
+		$this->answer_with(
+			200,
+			array(
+				'ok'           => true,
+				'image_base64' => base64_encode( $this->png_header( LPW_Capture::MAX_IMAGE_EDGE + 1, 1 ) ), // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- encoding an image fixture.
+			)
+		);
+
+		$result = LPW_Capture::run( $page_id );
+
+		$this->assertFalse( $result['ok'] );
+		$this->assertSame( 'failed', LPW_Store::latest_capture( $page_id )->state );
+	}
+
+	public function test_capture_rejects_an_image_over_the_pixel_limit() {
+		$page_id = LPW_Store::add_page( 'https://example.com/too-many-pixels/' );
+
+		$this->answer_with(
+			200,
+			array(
+				'ok'           => true,
+				'image_base64' => base64_encode( $this->png_header( 4000, 4000 ) ), // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- encoding an image fixture.
+			)
+		);
+
+		$result = LPW_Capture::run( $page_id );
+
+		$this->assertFalse( $result['ok'] );
+		$this->assertSame( 'failed', LPW_Store::latest_capture( $page_id )->state );
+	}
+
+	public function test_capture_accepts_a_real_image_and_creates_a_separate_baseline() {
+		$settings                      = lookit_page_watch_get_settings();
+		$settings['use_media_library'] = 0;
+		update_option( 'lookit_page_watch_settings', $settings, false );
+
+		$page_id = LPW_Store::add_page( 'https://example.com/valid-capture/' );
+		$this->answer_with(
+			200,
+			array(
+				'ok'           => true,
+				'provider'     => 'browserless',
+				'image_base64' => base64_encode( $this->valid_png() ), // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- encoding an image fixture.
+			)
+		);
+
+		try {
+			$result  = LPW_Capture::run( $page_id );
+			$page    = LPW_Store::get_page( $page_id );
+			$capture = LPW_Store::get_capture( $result['capture_id'] );
+
+			$this->assertTrue( $result['ok'] );
+			$this->assertSame( 'browserless', $capture->provider );
+			$this->assertNotSame( $capture->file, $page->baseline_file );
+			$this->assertFileExists( LPW_Store::capture_path( $capture ) );
+			$this->assertFileExists( LPW_Store::baseline_path( $page ) );
+		} finally {
+			LPW_Store::delete_page( $page_id );
+		}
 	}
 }

@@ -76,12 +76,6 @@ class LPW_Diff {
 		$b = self::load( $current_path );
 
 		if ( ! $a || ! $b ) {
-			if ( $a ) {
-				imagedestroy( $a ); // phpcs:ignore Generic.PHP.DeprecatedFunctions.Deprecated -- required to free GD resources on PHP 8.1–8.4.
-			}
-			if ( $b ) {
-				imagedestroy( $b ); // phpcs:ignore Generic.PHP.DeprecatedFunctions.Deprecated -- required to free GD resources on PHP 8.1–8.4.
-			}
 			return null;
 		}
 
@@ -93,8 +87,7 @@ class LPW_Diff {
 		$sa = imagescale( $a, self::SAMPLE_W, self::SAMPLE_H );
 		$sb = imagescale( $b, self::SAMPLE_W, self::SAMPLE_H );
 
-		imagedestroy( $a ); // phpcs:ignore Generic.PHP.DeprecatedFunctions.Deprecated -- required to free GD resources on PHP 8.1–8.4.
-		imagedestroy( $b ); // phpcs:ignore Generic.PHP.DeprecatedFunctions.Deprecated -- required to free GD resources on PHP 8.1–8.4.
+		unset( $a, $b );
 
 		if ( ! $sa || ! $sb ) {
 			return null;
@@ -131,8 +124,7 @@ class LPW_Diff {
 			}
 		}
 
-		imagedestroy( $sa ); // phpcs:ignore Generic.PHP.DeprecatedFunctions.Deprecated -- required to free GD resources on PHP 8.1–8.4.
-		imagedestroy( $sb ); // phpcs:ignore Generic.PHP.DeprecatedFunctions.Deprecated -- required to free GD resources on PHP 8.1–8.4.
+		unset( $sa, $sb );
 
 		$cell_pixels = self::CELL * self::CELL;
 		$worst_cell  = $cells ? max( $cells ) : 0;

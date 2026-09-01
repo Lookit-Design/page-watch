@@ -4,7 +4,7 @@ Tags: screenshots, monitoring, visual regression, email report, scheduled
 Requires at least: 6.4
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.8.4
+Stable tag: 0.8.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -105,6 +105,9 @@ Yes by default. Each capture becomes a real attachment, so WordPress handles thu
 On low-traffic sites, no. WP-Cron only fires when someone visits. For dependable hourly capture, disable WP-Cron and run `wp cron event run --due-now` from a server cron.
 
 == Changelog ==
+
+= 0.8.5 =
+* Image comparisons no longer trigger a deprecated GD cleanup call on PHP 8.5.
 
 = 0.8.4 =
 * Test the capture service no longer asks for a screenshot of this site, so it works on installs that only watch other people's pages.
