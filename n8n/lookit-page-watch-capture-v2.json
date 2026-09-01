@@ -1,0 +1,529 @@
+{
+  "name": "Lookit Page Watch \u2014 Capture v2",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "page-watch-capture",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b2c3d4e5-0001-4000-8000-000000000001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -820,
+        300
+      ],
+      "webhookId": "lookit-page-watch-capture"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg-provider",
+              "name": "provider",
+              "value": "mshots",
+              "type": "string"
+            },
+            {
+              "id": "cfg-token",
+              "name": "shared_token",
+              "value": "CHANGE-ME-LONG-RANDOM-STRING",
+              "type": "string"
+            },
+            {
+              "id": "cfg-burl",
+              "name": "browserless_url",
+              "value": "http://127.0.0.1:3000/screenshot?token=CHANGE-ME-BROWSERLESS-TOKEN",
+              "type": "string"
+            },
+            {
+              "id": "cfg-url",
+              "name": "url",
+              "value": "={{ $json.body.url }}",
+              "type": "string"
+            },
+            {
+              "id": "cfg-width",
+              "name": "width",
+              "value": "={{ $json.body.width || 1440 }}",
+              "type": "number"
+            },
+            {
+              "id": "cfg-full",
+              "name": "full_page",
+              "value": "={{ $json.body.full_page === false ? false : true }}",
+              "type": "boolean"
+            },
+            {
+              "id": "cfg-sent",
+              "name": "sent_token",
+              "value": "={{ $json.headers['x-lookit-token'] || $json.body.token || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "cfg-cache",
+              "name": "cache_key",
+              "value": "={{ Date.now() }}",
+              "type": "string"
+            },
+            {
+              "id": "cfg-target",
+              "name": "mshots_target",
+              "value": "={{ $json.body.url + ( $json.body.url.includes('?') ? '&' : '?' ) + 'pw=' + Date.now() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2c3d4e5-0002-4000-8000-000000000002",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -600,
+        300
+      ],
+      "notes": "provider: mshots (no setup) or browserless (self-hosted). mshots_target adds a cache-busting query arg so mShots renders the page fresh every run."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "auth-1",
+              "leftValue": "={{ $json.sent_token }}",
+              "rightValue": "={{ $json.shared_token }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "auth-2",
+              "leftValue": "={{ $json.url }}",
+              "rightValue": "^https?://",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2c3d4e5-0003-4000-8000-000000000003",
+      "name": "Authorised?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -380,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "sw-1",
+                    "leftValue": "={{ $json.provider }}",
+                    "rightValue": "browserless",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "browserless"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "mshots"
+        }
+      },
+      "id": "b2c3d4e5-0004-4000-8000-000000000004",
+      "name": "Which provider",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -160,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.browserless_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ url: $json.url, options: { type: 'png', fullPage: $json.full_page }, viewport: { width: $json.width, height: 1000, deviceScaleFactor: 1 }, gotoOptions: { waitUntil: 'networkidle2', timeout: 45000 }, waitForTimeout: 1500 }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "b2c3d4e5-0005-4000-8000-000000000005",
+      "name": "Browserless screenshot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        120,
+        140
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://s.wordpress.com/mshots/v1/{{ encodeURIComponent($json.mshots_target) }}?w={{ Math.min($json.width, 1280) }}&h=960",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "b2c3d4e5-0006-4000-8000-000000000006",
+      "name": "Ask mShots to render",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        80,
+        400
+      ],
+      "onError": "continueRegularOutput",
+      "notes": "mShots caps images at 1280x960 and cannot render full pages. Use the browserless provider if you need the whole page."
+    },
+    {
+      "parameters": {
+        "jsCode": "// mShots renders asynchronously. The first request queues the job and hands\n// back a grey placeholder, so wait before asking for the real image.\n//\n// Kept deliberately short: the webhook connection to WordPress sits idle for\n// the whole of this pause, and a long idle connection is liable to be dropped\n// by anything sitting in between. The plugin retries a not-ready response, so\n// a shorter wait here is cheaper than a dropped connection.\nawait new Promise( ( resolve ) => setTimeout( resolve, 5000 ) );\nreturn $('Config').all();"
+      },
+      "id": "b2c3d4e5-0007-4000-8000-000000000007",
+      "name": "Give it 5 seconds",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://s.wordpress.com/mshots/v1/{{ encodeURIComponent($json.mshots_target) }}?w={{ Math.min($json.width, 1280) }}&h=960",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          },
+          "timeout": 45000
+        }
+      },
+      "id": "b2c3d4e5-0008-4000-8000-000000000008",
+      "name": "Collect mShots image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        400
+      ],
+      "onError": "continueErrorOutput",
+      "notes": "mShots caps images at 1280x960 and cannot render full pages. Use the browserless provider if you need the whole page."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pull the image through the binary helper so this works whether n8n keeps\n// binaries in memory or on the filesystem. Reading binary.data.data directly\n// returns a reference, not the image, when filesystem mode is on.\nconst cfg = $('Config').first().json;\nconst item = $input.first();\nconst bin = item.binary && item.binary.data ? item.binary.data : null;\n\nlet buffer;\ntry {\n  buffer = await this.helpers.getBinaryDataBuffer( 0, 'data' );\n} catch ( e ) {\n  return [ { json: { ok: false, error: 'The capture provider returned no image.' } } ];\n}\n\nif ( ! buffer || ! buffer.length ) {\n  return [ { json: { ok: false, error: 'The capture provider returned an empty image.' } } ];\n}\n\n// mShots hands back a small grey placeholder while it renders. A real\n// screenshot is comfortably larger than this.\nif ( cfg.provider !== 'browserless' && buffer.length < 8000 ) {\n  return [ { json: { ok: false, retry: true, error: 'mShots is still rendering this page.' } } ];\n}\n\nreturn [ {\n  json: {\n    ok: true,\n    provider: cfg.provider,\n    url: cfg.url,\n    width: cfg.width,\n    full_page: cfg.full_page,\n    mime: ( bin && bin.mimeType ) ? bin.mimeType : 'image/jpeg',\n    bytes: buffer.length,\n    captured_at: new Date().toISOString(),\n    image_base64: buffer.toString( 'base64' )\n  }\n} ];"
+      },
+      "id": "b2c3d4e5-0009-4000-8000-000000000009",
+      "name": "Build payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "b2c3d4e5-0010-4000-8000-000000000010",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const err = $input.first().json || {};\nlet message = err.message || err.error || 'The capture provider could not render the page.';\n\nif ( typeof message === 'object' ) {\n  message = JSON.stringify( message );\n}\n\nif ( String( message ).includes( 'EAI_AGAIN' ) || String( message ).includes( 'ECONNREFUSED' ) ) {\n  message = 'n8n cannot reach the browser container at the configured address. Switch the Config node provider to mshots, or fix browserless_url.';\n}\n\n// Transport level faults are worth another go; the plugin honours this flag.\nconst retryable = /ETIMEDOUT|ECONNRESET|socket hang up|EAI_AGAIN|timeout/i.test( String( message ) );\n\nreturn [ { json: { ok: false, retry: retryable, error: String( message ) } } ];"
+      },
+      "id": "b2c3d4e5-0011-4000-8000-000000000011",
+      "name": "Capture failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 502,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "b2c3d4e5-0012-4000-8000-000000000012",
+      "name": "Respond capture error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: 'Unauthorised or invalid URL.' }) }}",
+        "options": {
+          "responseCode": 401,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "b2c3d4e5-0013-4000-8000-000000000013",
+      "name": "Respond unauthorised",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -160,
+        560
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Authorised?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Authorised?": {
+      "main": [
+        [
+          {
+            "node": "Which provider",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond unauthorised",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Which provider": {
+      "main": [
+        [
+          {
+            "node": "Browserless screenshot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ask mShots to render",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Browserless screenshot": {
+      "main": [
+        [
+          {
+            "node": "Build payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Capture failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask mShots to render": {
+      "main": [
+        [
+          {
+            "node": "Give it 5 seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect mShots image": {
+      "main": [
+        [
+          {
+            "node": "Build payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Capture failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build payload": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Capture failed": {
+      "main": [
+        [
+          {
+            "node": "Respond capture error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Give it 5 seconds": {
+      "main": [
+        [
+          {
+            "node": "Collect mShots image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none",
+    "executionTimeout": 180
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "lookit-page-watch"
+  },
+  "tags": [
+    {
+      "name": "Lookit"
+    },
+    {
+      "name": "Page Watch"
+    }
+  ]
+}
