@@ -167,11 +167,12 @@ class LPW_Capture {
 	 * first ask. Both clear on a second attempt, so a failure is only reported
 	 * once the retries are used up.
 	 *
-	 * @param string              $endpoint Webhook URL.
-	 * @param array<string,mixed> $payload  Request body.
+	 * @param string              $endpoint     Webhook URL.
+	 * @param array<string,mixed> $payload      Request body.
+	 * @param bool                $expect_image Require an image in the reply. False for a connection ping.
 	 * @return array{ok:bool,message:string,body:array<string,mixed>|null}
 	 */
-	private static function request( $endpoint, array $payload ) {
+	private static function request( $endpoint, array $payload, $expect_image = true ) {
 		$attempts = 3;
 		$last     = __( 'The capture service could not be reached.', 'lookit-page-watch' );
 
@@ -220,7 +221,9 @@ class LPW_Capture {
 			}
 			$body = json_decode( $response_body, true );
 
-			if ( 200 === $code && is_array( $body ) && ! empty( $body['ok'] ) && ! empty( $body['image_base64'] ) ) {
+			$has_image = ! $expect_image || ( is_array( $body ) && ! empty( $body['image_base64'] ) );
+
+			if ( 200 === $code && is_array( $body ) && ! empty( $body['ok'] ) && $has_image ) {
 				return array(
 					'ok'      => true,
 					'message' => '',
@@ -229,7 +232,22 @@ class LPW_Capture {
 			}
 
 			if ( 401 === $code ) {
-				$last = __( 'The capture service rejected the token. Check that the shared token here matches the one in the n8n Config node.', 'lookit-page-watch' );
+				$last = __( 'The capture service rejected the shared token. Check that it matches the one in the n8n Config node.', 'lookit-page-watch' );
+				break;
+			}
+
+			// The workflow answers 403 when the token was accepted but the
+			// request was refused for another reason, which is almost always
+			// the hostname allowlist.
+			if ( 403 === $code ) {
+				$detail = ( is_array( $body ) && ! empty( $body['error'] ) ) ? (string) $body['error'] : '';
+				$last   = '' === $detail
+					? __( 'The capture service refused this URL. Add its hostname to allowed_hosts in the n8n Config node.', 'lookit-page-watch' )
+					: sprintf(
+						/* translators: %s: reason reported by the capture workflow. */
+						__( '%s Check allowed_hosts in the n8n Config node.', 'lookit-page-watch' ),
+						$detail
+					);
 				break;
 			}
 
@@ -301,7 +319,12 @@ class LPW_Capture {
 	}
 
 	/**
-	 * Send a no-op request to confirm the endpoint answers.
+	 * Confirm the endpoint answers and accepts the shared token.
+	 *
+	 * This asks for no screenshot. Rendering this site would require its own
+	 * address to be on the workflow allowlist, which is not something a site
+	 * watching other people's pages would have configured, so the test used to
+	 * fail on installs that were set up correctly.
 	 *
 	 * @return array{ok:bool,message:string}
 	 */
@@ -317,16 +340,16 @@ class LPW_Capture {
 		$attempt = self::request(
 			$endpoint,
 			array(
-				'url'       => home_url( '/' ),
-				'width'     => 800,
-				'full_page' => false,
-			)
+				'mode'   => 'ping',
+				'source' => home_url( '/' ),
+			),
+			false
 		);
 
 		if ( $attempt['ok'] ) {
 			return array(
 				'ok'      => true,
-				'message' => __( 'The capture service answered and returned an image.', 'lookit-page-watch' ),
+				'message' => __( 'The capture service answered and accepted the shared token.', 'lookit-page-watch' ),
 			);
 		}
 

@@ -4,7 +4,7 @@ Tags: screenshots, monitoring, visual regression, email report, scheduled
 Requires at least: 6.4
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.8.3
+Stable tag: 0.8.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -44,7 +44,7 @@ This plugin sends data to a screenshot capture service that you configure and ho
 **Capture endpoint (self-hosted n8n)**
 
 * What is sent: the URL of each watched page, the requested capture width, a whole-page flag, the address of this site, and a shared token used to authenticate the request.
-* When: on each scheduled capture run, when Run capture now or Capture is used, and when Test the capture service is used.
+* When: on each scheduled capture run, and when Run capture now or Capture is used. Test the capture service sends only the address of this site and the shared token, and receives no image.
 * What is received: a PNG image of the requested page, encoded as base64.
 
 No page content, user data, or credentials are transmitted. The endpoint address is set by the site owner under Page Watch, Schedule and email. Because the service is self-hosted, the applicable terms and privacy policy are those of the organisation operating it.
@@ -106,6 +106,10 @@ On low-traffic sites, no. WP-Cron only fires when someone visits. For dependable
 
 == Changelog ==
 
+= 0.8.4 =
+* Test the capture service no longer asks for a screenshot of this site, so it works on installs that only watch other people's pages.
+* A refused capture now says whether the shared token or the workflow host allowlist was the problem, instead of always blaming the token.
+
 = 0.8.3 =
 * Capture endpoints require HTTPS unless they run on localhost.
 * Screenshot responses now have byte, dimension and pixel limits.
@@ -159,6 +163,9 @@ On low-traffic sites, no. WP-Cron only fires when someone visits. For dependable
 * First working version: watchlist, locked baselines, scheduled capture through n8n, difference detection, side-by-side comparison screen, HTML digest email.
 
 == Upgrade Notice ==
+
+= 0.8.4 =
+Re-import the bundled n8n workflow. The connection test and the refusal messages both depend on the updated version.
 
 = 0.8.3 =
 Re-import the bundled n8n workflow, then configure its shared token and allowed hosts before activation.
