@@ -4,7 +4,7 @@ Tags: screenshots, monitoring, visual regression, email report, scheduled
 Requires at least: 6.4
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.8.1
+Stable tag: 0.8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -106,6 +106,9 @@ On low-traffic sites, no. WP-Cron only fires when someone visits. For dependable
 
 == Changelog ==
 
+= 0.8.2 =
+* Existing settings are migrated out of WordPress autoload while preserving the capture token.
+
 = 0.8.1 =
 * Shared capture token is no longer shown in the settings form. Leave the field blank to keep the saved value.
 * Capture responses are accepted only when they decode as PNG, JPEG, or WebP.
@@ -150,6 +153,9 @@ On low-traffic sites, no. WP-Cron only fires when someone visits. For dependable
 * First working version: watchlist, locked baselines, scheduled capture through n8n, difference detection, side-by-side comparison screen, HTML digest email.
 
 == Upgrade Notice ==
+
+= 0.8.2 =
+Existing settings are removed from autoload without changing their values.
 
 = 0.8.1 =
 The capture token is no longer displayed after save. Leave the field blank to keep the current token.

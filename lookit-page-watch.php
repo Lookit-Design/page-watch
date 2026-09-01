@@ -3,7 +3,7 @@
  * Plugin Name:       Lookit Page Watch
  * Plugin URI:        https://lookitdesign.com/
  * Description:       Captures scheduled screenshots of selected pages, keeps a locked baseline image for each one, and emails a side-by-side comparison so changes can be spotted by eye.
- * Version:           0.8.1
+ * Version:           0.8.2
  * Requires at least: 6.4
  * Requires PHP:      8.1
  * Author:            Lookit Design
@@ -33,7 +33,7 @@ defined( 'ABSPATH' ) || exit;
  * ---------------------------------------------------------------------------
  */
 
-define( 'LPW_VERSION', '0.8.1' );
+define( 'LPW_VERSION', '0.8.2' );
 define( 'LPW_FILE', __FILE__ );
 define( 'LPW_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LPW_URL', plugin_dir_url( __FILE__ ) );
@@ -97,6 +97,22 @@ function lookit_page_watch_setting( $key, $fallback = null ) {
 }
 
 /**
+ * Move settings created by older versions out of the autoloaded option set.
+ *
+ * @return void
+ */
+function lookit_page_watch_maybe_disable_settings_autoload() {
+	$alloptions = wp_load_alloptions();
+	if ( ! isset( $alloptions['lookit_page_watch_settings'] ) ) {
+		return;
+	}
+
+	$settings = get_option( 'lookit_page_watch_settings' );
+	delete_option( 'lookit_page_watch_settings' );
+	add_option( 'lookit_page_watch_settings', $settings, '', false );
+}
+
+/**
  * Absolute path to the capture storage directory, created if missing.
  *
  * @return array{path:string,url:string}
@@ -143,6 +159,8 @@ function lookit_page_watch_storage_dir() {
  * @return void
  */
 function lookit_page_watch_init() {
+	lookit_page_watch_maybe_disable_settings_autoload();
+
 	// Run dbDelta when the stored schema version is behind the plugin, so
 	// updating over an older install picks up new columns.
 	if ( get_option( 'lookit_page_watch_db_version' ) !== LPW_VERSION ) {
