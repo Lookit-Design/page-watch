@@ -36,7 +36,7 @@ This plugin is installed from GitHub, not from WordPress.org.
 
 ### Configuration
 
-1. Import `n8n/lookit-page-watch-capture-v2.json` into n8n and set the shared token in the Config node. See `n8n/SETUP.md`.
+1. Import `n8n/lookit-page-watch-capture-v2.json` into n8n, then set the shared token and allowed capture hosts in the Config node. See `n8n/SETUP.md`.
 2. Activate the workflow and copy its production webhook URL.
 3. In WordPress, go to **Page Watch → Schedule and email**. Paste the webhook URL and the same shared token, then save.
 4. Use **Test the capture service** to confirm the connection.
@@ -59,6 +59,8 @@ The token field stays blank after save; leave it empty to keep the stored value.
 * The capture **shared token is never rendered** back into the settings form. Submitting the field blank keeps the saved value.
 * Settings are **not autoloaded**.
 * Capture payloads are checked as real PNG, JPEG, or WebP images before they are stored.
+* Capture responses have byte, dimension, and pixel limits.
+* The n8n workflow requires an explicit hostname allowlist and refuses its placeholder credentials.
 * Admin screens and AJAX actions require `manage_options`.
 * On uninstall, data is kept by default (configurable under Storage).
 

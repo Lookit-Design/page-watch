@@ -4,7 +4,7 @@ Tags: screenshots, monitoring, visual regression, email report, scheduled
 Requires at least: 6.4
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.8.2
+Stable tag: 0.8.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -106,6 +106,12 @@ On low-traffic sites, no. WP-Cron only fires when someone visits. For dependable
 
 == Changelog ==
 
+= 0.8.3 =
+* Capture endpoints require HTTPS unless they run on localhost.
+* Screenshot responses now have byte, dimension and pixel limits.
+* The bundled n8n workflow rejects placeholder credentials and hosts outside its allowlist, clamps capture width, and prevents raw provider errors from exposing credentials.
+* Removing a watched page cleans all of its captures, including histories longer than 500 entries.
+
 = 0.8.2 =
 * Existing settings are migrated out of WordPress autoload while preserving the capture token.
 
@@ -153,6 +159,9 @@ On low-traffic sites, no. WP-Cron only fires when someone visits. For dependable
 * First working version: watchlist, locked baselines, scheduled capture through n8n, difference detection, side-by-side comparison screen, HTML digest email.
 
 == Upgrade Notice ==
+
+= 0.8.3 =
+Re-import the bundled n8n workflow, then configure its shared token and allowed hosts before activation.
 
 = 0.8.2 =
 Existing settings are removed from autoload without changing their values.

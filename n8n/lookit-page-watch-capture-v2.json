@@ -35,6 +35,12 @@
               "type": "string"
             },
             {
+              "id": "cfg-hosts",
+              "name": "allowed_hosts",
+              "value": "CHANGE-ME-ALLOWED-HOSTS",
+              "type": "string"
+            },
+            {
               "id": "cfg-burl",
               "name": "browserless_url",
               "value": "http://127.0.0.1:3000/screenshot?token=CHANGE-ME-BROWSERLESS-TOKEN",
@@ -49,7 +55,7 @@
             {
               "id": "cfg-width",
               "name": "width",
-              "value": "={{ $json.body.width || 1440 }}",
+              "value": "={{ $json.body.width }}",
               "type": "number"
             },
             {
@@ -61,19 +67,7 @@
             {
               "id": "cfg-sent",
               "name": "sent_token",
-              "value": "={{ $json.headers['x-lookit-token'] || $json.body.token || '' }}",
-              "type": "string"
-            },
-            {
-              "id": "cfg-cache",
-              "name": "cache_key",
-              "value": "={{ Date.now() }}",
-              "type": "string"
-            },
-            {
-              "id": "cfg-target",
-              "name": "mshots_target",
-              "value": "={{ $json.body.url + ( $json.body.url.includes('?') ? '&' : '?' ) + 'pw=' + Date.now() }}",
+              "value": "={{ $json.headers['x-lookit-token'] || '' }}",
               "type": "string"
             }
           ]
@@ -88,7 +82,21 @@
         -600,
         300
       ],
-      "notes": "provider: mshots (no setup) or browserless (self-hosted). mshots_target adds a cache-busting query arg so mShots renders the page fresh every run."
+      "notes": "Replace shared_token and allowed_hosts before activation. allowed_hosts is a comma-separated list of exact hosts or *.example.com wildcards."
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $input.first().json;\nconst placeholder = 'CHANGE-ME-LONG-RANDOM-STRING';\nconst hostPlaceholder = 'change-me-allowed-hosts';\nconst patterns = String( cfg.allowed_hosts || '' ).split( ',' ).map( value => value.trim().toLowerCase().replace( /\\.$/, '' ) ).filter( Boolean );\nlet parsed = null;\ntry {\n  parsed = new URL( String( cfg.url || '' ) );\n} catch ( error ) {}\nconst host = parsed ? parsed.hostname.toLowerCase().replace( /\\.$/, '' ) : '';\nconst protocolAllowed = parsed && ( parsed.protocol === 'http:' || parsed.protocol === 'https:' ) && ! parsed.username && ! parsed.password;\nconst hostsConfigured = patterns.length > 0 && ! patterns.includes( hostPlaceholder );\nconst hostAllowed = protocolAllowed && hostsConfigured && patterns.some( pattern => pattern.startsWith( '*.' ) ? host.endsWith( pattern.slice( 1 ) ) && host !== pattern.slice( 2 ) : host === pattern );\nconst tokenAllowed = typeof cfg.shared_token === 'string' && cfg.shared_token.length >= 32 && cfg.shared_token !== placeholder && cfg.sent_token === cfg.shared_token;\nconst requestedWidth = Number( cfg.width );\nconst width = Number.isFinite( requestedWidth ) ? Math.max( 320, Math.min( 1920, Math.round( requestedWidth ) ) ) : 1440;\nconst url = parsed ? parsed.toString() : '';\nreturn [ { json: {\n  authorised: Boolean( tokenAllowed && hostAllowed ),\n  provider: cfg.provider === 'browserless' ? 'browserless' : 'mshots',\n  browserless_url: cfg.browserless_url,\n  url,\n  width,\n  full_page: Boolean( cfg.full_page ),\n  mshots_target: url ? url + ( url.includes( '?' ) ? '&' : '?' ) + 'pw=' + Date.now() : ''\n} } ];"
+      },
+      "id": "b2c3d4e5-0014-4000-8000-000000000014",
+      "name": "Validate request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -490,
+        300
+      ],
+      "notes": "Rejects placeholder credentials and hosts not explicitly allowed, then clamps capture width."
     },
     {
       "parameters": {
@@ -102,20 +110,11 @@
           "conditions": [
             {
               "id": "auth-1",
-              "leftValue": "={{ $json.sent_token }}",
-              "rightValue": "={{ $json.shared_token }}",
+              "leftValue": "={{ $json.authorised }}",
+              "rightValue": true,
               "operator": {
-                "type": "string",
+                "type": "boolean",
                 "operation": "equals"
-              }
-            },
-            {
-              "id": "auth-2",
-              "leftValue": "={{ $json.url }}",
-              "rightValue": "^https?://",
-              "operator": {
-                "type": "string",
-                "operation": "regex"
               }
             }
           ],
@@ -230,7 +229,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// mShots renders asynchronously. The first request queues the job and hands\n// back a grey placeholder, so wait before asking for the real image.\n//\n// Kept deliberately short: the webhook connection to WordPress sits idle for\n// the whole of this pause, and a long idle connection is liable to be dropped\n// by anything sitting in between. The plugin retries a not-ready response, so\n// a shorter wait here is cheaper than a dropped connection.\nawait new Promise( ( resolve ) => setTimeout( resolve, 5000 ) );\nreturn $('Config').all();"
+        "jsCode": "// mShots renders asynchronously. The first request queues the job and hands\n// back a grey placeholder, so wait before asking for the real image.\nawait new Promise( ( resolve ) => setTimeout( resolve, 5000 ) );\nreturn $('Validate request').all();"
       },
       "id": "b2c3d4e5-0007-4000-8000-000000000007",
       "name": "Give it 5 seconds",
@@ -268,7 +267,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Pull the image through the binary helper so this works whether n8n keeps\n// binaries in memory or on the filesystem. Reading binary.data.data directly\n// returns a reference, not the image, when filesystem mode is on.\nconst cfg = $('Config').first().json;\nconst item = $input.first();\nconst bin = item.binary && item.binary.data ? item.binary.data : null;\n\nlet buffer;\ntry {\n  buffer = await this.helpers.getBinaryDataBuffer( 0, 'data' );\n} catch ( e ) {\n  return [ { json: { ok: false, error: 'The capture provider returned no image.' } } ];\n}\n\nif ( ! buffer || ! buffer.length ) {\n  return [ { json: { ok: false, error: 'The capture provider returned an empty image.' } } ];\n}\n\n// mShots hands back a small grey placeholder while it renders. A real\n// screenshot is comfortably larger than this.\nif ( cfg.provider !== 'browserless' && buffer.length < 8000 ) {\n  return [ { json: { ok: false, retry: true, error: 'mShots is still rendering this page.' } } ];\n}\n\nreturn [ {\n  json: {\n    ok: true,\n    provider: cfg.provider,\n    url: cfg.url,\n    width: cfg.width,\n    full_page: cfg.full_page,\n    mime: ( bin && bin.mimeType ) ? bin.mimeType : 'image/jpeg',\n    bytes: buffer.length,\n    captured_at: new Date().toISOString(),\n    image_base64: buffer.toString( 'base64' )\n  }\n} ];"
+        "jsCode": "// Pull the image through the binary helper so this works whether n8n keeps\n// binaries in memory or on the filesystem.\nconst cfg = $('Validate request').first().json;\nconst item = $input.first();\nconst bin = item.binary && item.binary.data ? item.binary.data : null;\n\nlet buffer;\ntry {\n  buffer = await this.helpers.getBinaryDataBuffer( 0, 'data' );\n} catch ( e ) {\n  return [ { json: { ok: false, error: 'The capture provider returned no image.' } } ];\n}\n\nif ( ! buffer || ! buffer.length ) {\n  return [ { json: { ok: false, error: 'The capture provider returned an empty image.' } } ];\n}\n\nif ( buffer.length > 8388608 ) {\n  return [ { json: { ok: false, error: 'The capture provider returned an image larger than 8 MB.' } } ];\n}\n\n// mShots hands back a small grey placeholder while it renders.\nif ( cfg.provider !== 'browserless' && buffer.length < 8000 ) {\n  return [ { json: { ok: false, retry: true, error: 'mShots is still rendering this page.' } } ];\n}\n\nreturn [ {\n  json: {\n    ok: true,\n    provider: cfg.provider,\n    url: cfg.url,\n    width: cfg.width,\n    full_page: cfg.full_page,\n    mime: ( bin && bin.mimeType ) ? bin.mimeType : 'image/jpeg',\n    bytes: buffer.length,\n    captured_at: new Date().toISOString(),\n    image_base64: buffer.toString( 'base64' )\n  }\n} ];"
       },
       "id": "b2c3d4e5-0009-4000-8000-000000000009",
       "name": "Build payload",
@@ -306,7 +305,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const err = $input.first().json || {};\nlet message = err.message || err.error || 'The capture provider could not render the page.';\n\nif ( typeof message === 'object' ) {\n  message = JSON.stringify( message );\n}\n\nif ( String( message ).includes( 'EAI_AGAIN' ) || String( message ).includes( 'ECONNREFUSED' ) ) {\n  message = 'n8n cannot reach the browser container at the configured address. Switch the Config node provider to mshots, or fix browserless_url.';\n}\n\n// Transport level faults are worth another go; the plugin honours this flag.\nconst retryable = /ETIMEDOUT|ECONNRESET|socket hang up|EAI_AGAIN|timeout/i.test( String( message ) );\n\nreturn [ { json: { ok: false, retry: retryable, error: String( message ) } } ];"
+        "jsCode": "const err = $input.first().json || {};\nconst raw = String( err.message || err.error || '' );\nconst unreachable = /EAI_AGAIN|ECONNREFUSED/i.test( raw );\nconst retryable = /ETIMEDOUT|ECONNRESET|socket hang up|EAI_AGAIN|timeout/i.test( raw );\nconst message = unreachable\n  ? 'n8n cannot reach the configured browser container.'\n  : 'The capture provider could not render the page.';\nreturn [ { json: { ok: false, retry: retryable, error: message } } ];"
       },
       "id": "b2c3d4e5-0011-4000-8000-000000000011",
       "name": "Capture failed",
@@ -381,6 +380,17 @@
       ]
     },
     "Config": {
+      "main": [
+        [
+          {
+            "node": "Validate request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate request": {
       "main": [
         [
           {
@@ -510,7 +520,7 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "saveDataErrorExecution": "all",
+    "saveDataErrorExecution": "none",
     "saveDataSuccessExecution": "none",
     "executionTimeout": 180
   },
