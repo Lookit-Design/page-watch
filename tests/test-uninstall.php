@@ -10,6 +10,7 @@ class Test_Lookit_Page_Watch_Uninstall extends WP_UnitTestCase {
 		delete_option( 'lookit_page_watch_settings' );
 		delete_option( 'lookit_page_watch_db_version' );
 		delete_option( 'lookit_page_watch_last_digest' );
+		delete_option( LPW_Cron::LOCK_OPTION );
 		LPW_Cron::unschedule();
 		parent::tear_down();
 	}
@@ -24,6 +25,7 @@ class Test_Lookit_Page_Watch_Uninstall extends WP_UnitTestCase {
 			false
 		);
 		update_option( 'lookit_page_watch_db_version', LPW_VERSION, false );
+		add_option( LPW_Cron::LOCK_OPTION, array( 'owner' => 'test' ), '', false );
 
 		if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 			define( 'WP_UNINSTALL_PLUGIN', 'lookit-page-watch/lookit-page-watch.php' );
@@ -32,6 +34,7 @@ class Test_Lookit_Page_Watch_Uninstall extends WP_UnitTestCase {
 
 		$this->assertNotFalse( get_option( 'lookit_page_watch_settings' ) );
 		$this->assertSame( LPW_VERSION, get_option( 'lookit_page_watch_db_version' ) );
+		$this->assertFalse( get_option( LPW_Cron::LOCK_OPTION ) );
 	}
 
 	public function test_uninstall_removes_plugin_data_when_preservation_is_disabled() {

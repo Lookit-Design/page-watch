@@ -15,6 +15,7 @@ class Test_Lookit_Page_Watch_Critical_Workflows extends WP_UnitTestCase {
 	public function tear_down() {
 		LPW_Cron::unschedule();
 		delete_option( 'lookit_page_watch_settings' );
+		delete_option( LPW_Cron::LOCK_OPTION );
 		delete_option( 'timezone_string' );
 
 		foreach ( $this->temporary_files as $file ) {
@@ -243,5 +244,31 @@ class Test_Lookit_Page_Watch_Critical_Workflows extends WP_UnitTestCase {
 		LPW_Cron::reschedule();
 
 		$this->assertFalse( wp_next_scheduled( 'lpw_digest_event' ) );
+	}
+
+	public function test_capture_cron_skips_an_active_run() {
+		$lock = array(
+			'owner'      => 'existing-run',
+			'started_at' => time(),
+		);
+		add_option( LPW_Cron::LOCK_OPTION, $lock, '', false );
+
+		$this->assertFalse( LPW_Cron::do_capture() );
+		$this->assertSame( $lock, get_option( LPW_Cron::LOCK_OPTION ) );
+	}
+
+	public function test_capture_cron_recovers_a_stale_lock() {
+		add_option(
+			LPW_Cron::LOCK_OPTION,
+			array(
+				'owner'      => 'stale-run',
+				'started_at' => time() - LPW_Cron::LOCK_TTL - 1,
+			),
+			'',
+			false
+		);
+
+		$this->assertTrue( LPW_Cron::do_capture() );
+		$this->assertFalse( get_option( LPW_Cron::LOCK_OPTION ) );
 	}
 }

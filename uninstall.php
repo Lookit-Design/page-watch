@@ -20,6 +20,7 @@ $lookit_page_watch_settings = get_option( 'lookit_page_watch_settings' );
 // Scheduled events always go, whether or not the data stays.
 wp_clear_scheduled_hook( 'lpw_capture_event' );
 wp_clear_scheduled_hook( 'lpw_digest_event' );
+delete_option( 'lookit_page_watch_capture_lock' );
 
 $lookit_page_watch_preserve = is_array( $lookit_page_watch_settings )
 	&& ! empty( $lookit_page_watch_settings['preserve_on_uninstall'] );
