@@ -12,6 +12,9 @@ defined( 'ABSPATH' ) || exit;
  */
 class LPW_Cron {
 
+	const LOCK_OPTION = 'lookit_page_watch_capture_lock';
+	const LOCK_TTL    = 2 * HOUR_IN_SECONDS;
+
 	/**
 	 * Hook everything up.
 	 *
@@ -105,15 +108,50 @@ class LPW_Cron {
 	/**
 	 * Scheduled capture run.
 	 *
-	 * @return void
+	 * @return bool Whether the run started.
 	 */
 	public static function do_capture() {
-		LPW_Capture::run_all();
-		LPW_Store::prune();
-
-		if ( 'every_run' === lookit_page_watch_setting( 'digest_mode' ) ) {
-			LPW_Mailer::send_digest();
+		$owner = wp_generate_uuid4();
+		if ( ! self::acquire_capture_lock( $owner ) ) {
+			return false;
 		}
+
+		try {
+			LPW_Capture::run_all();
+			LPW_Store::prune();
+
+			if ( 'every_run' === lookit_page_watch_setting( 'digest_mode' ) ) {
+				LPW_Mailer::send_digest();
+			}
+		} finally {
+			$lock = get_option( self::LOCK_OPTION );
+			if ( is_array( $lock ) && ( $lock['owner'] ?? '' ) === $owner ) {
+				delete_option( self::LOCK_OPTION );
+			}
+		}
+
+		return true;
+	}
+
+	private static function acquire_capture_lock( $owner ) {
+		$lock = get_option( self::LOCK_OPTION );
+		if ( is_array( $lock ) && self::LOCK_TTL > time() - (int) ( $lock['started_at'] ?? 0 ) ) {
+			return false;
+		}
+
+		if ( false !== $lock ) {
+			delete_option( self::LOCK_OPTION );
+		}
+
+		return add_option(
+			self::LOCK_OPTION,
+			array(
+				'owner'      => $owner,
+				'started_at' => time(),
+			),
+			'',
+			false
+		);
 	}
 
 	/**
